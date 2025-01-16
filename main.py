@@ -1,7 +1,7 @@
 import streamlit as st
 import assemblyai as aai
 import requests
-from xyz import ASSEMBLYAI_API_KEY  # Importing API key from xyz module
+# from xyz import ASSEMBLYAI_API_KEY  # Importing API key from xyz module
 
 aai.settings.api_key = ASSEMBLYAI_API_KEY
 
@@ -46,7 +46,7 @@ if uploaded_file:
                     st.success("Transcription complete!")
                     st.subheader("Transcription Results with Start-End Timestamps")
                     
-                    for utterance in transcript.utterances:
+                    for utterance in transcript.utterances:  # type: ignore
                         # Convert start and end timestamps (in ms) to minutes:seconds format
                         start_time = int(utterance.start) // 1000  # Convert ms to seconds
                         end_time = int(utterance.end) // 1000  # Convert ms to seconds

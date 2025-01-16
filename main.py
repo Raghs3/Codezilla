@@ -1,7 +1,8 @@
 import streamlit as st
 import assemblyai as aai
 import requests
-# from xyz import ASSEMBLYAI_API_KEY  # Importing API key from xyz module
+
+ASSEMBLYAI_API_KEY = st.secrets['ASSEMBLYAI_API_KEY']
 
 aai.settings.api_key = ASSEMBLYAI_API_KEY
 

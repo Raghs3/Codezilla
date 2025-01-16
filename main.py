@@ -1,25 +1,66 @@
-import os
-from pyannote.audio import Pipeline
-from pyannote.audio.pipelines.utils import get_devices
+import streamlit as st
+import assemblyai as aai
+import requests
+from xyz import ASSEMBLYAI_API_KEY  # Importing API key from xyz module
 
-# Check available devices
-print(get_devices())
+aai.settings.api_key = ASSEMBLYAI_API_KEY
 
-# Load the pre-trained speaker diarization pipeline
-pipeline = Pipeline.from_pretrained("pyannote/speaker-diarization", use_auth_token="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")
+def upload_to_assemblyai(file):
+    """Uploads an MP3 file to AssemblyAI's servers."""
+    headers = {'authorization': ASSEMBLYAI_API_KEY}
+    response = requests.post(
+        'https://api.assemblyai.com/v2/upload',
+        headers=headers,
+        files={'file': file}
+    )
+    if response.status_code == 200:
+        return response.json()['upload_url']
+    else:
+        st.error(f"File upload failed: {response.text}")
+        return None
 
-# Define input audio file
-audio_file = "path/to/your/audio/file.wav"  # Ensure it's 16kHz WAV format
+st.title("Audio Transcription with Timestamps")
+st.subheader("Upload an MP3 file for transcription with speaker timestamps")
 
-# Perform speaker diarization
-print("Processing audio file...")
-diarization = pipeline(audio_file)
+# File upload widget
+uploaded_file = st.file_uploader("Choose an MP3 file", type=["mp3"])
 
-# Output diarization result
-output_file = "diarization_output.txt"
-with open(output_file, "w") as f:
-    for segment, _, speaker in diarization.itertracks(yield_label=True):
-        f.write(f"{segment.start:.3f} {segment.end:.3f} {speaker}\n")
-        print(f"[{segment.start:.3f}s - {segment.end:.3f}s] {speaker}")
+if uploaded_file:
+    st.info("File uploaded successfully. Click 'Transcribe' to start.")
 
-print(f"Diarization results saved to {output_file}")
+    if st.button("Transcribe"):
+        try:
+            with st.spinner("Uploading the file to AssemblyAI..."):
+                # Upload file to AssemblyAI
+                upload_url = upload_to_assemblyai(uploaded_file)
+                if not upload_url:
+                    st.error("Failed to upload the file. Please try again.")
+                else:
+                    # Transcription configuration
+                    config = aai.TranscriptionConfig(speaker_labels=True)
+
+                    with st.spinner("Transcribing the audio file..."):
+                        # Transcribe the uploaded file
+                        transcript = aai.Transcriber().transcribe(upload_url, config)
+
+                    st.success("Transcription complete!")
+                    st.subheader("Transcription Results with Start-End Timestamps")
+                    
+                    for utterance in transcript.utterances:
+                        # Convert start and end timestamps (in ms) to minutes:seconds format
+                        start_time = int(utterance.start) // 1000  # Convert ms to seconds
+                        end_time = int(utterance.end) // 1000  # Convert ms to seconds
+                        
+                        start_minutes = start_time // 60
+                        start_seconds = start_time % 60
+                        end_minutes = end_time // 60
+                        end_seconds = end_time % 60
+                        
+                        formatted_start = f"{start_minutes:02}:{start_seconds:02}"
+                        formatted_end = f"{end_minutes:02}:{end_seconds:02}"
+                        
+                        st.write(
+                            f"**[{formatted_start}-{formatted_end}] Speaker {utterance.speaker}:** {utterance.text}"
+                        )
+        except Exception as e:
+            st.error(f"An error occurred: {e}")

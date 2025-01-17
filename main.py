@@ -1,67 +1,128 @@
 import streamlit as st
-import assemblyai as aai
 import requests
+import time
 
-ASSEMBLYAI_API_KEY = st.secrets['ASSEMBLYAI_API_KEY']
 
-aai.settings.api_key = ASSEMBLYAI_API_KEY
+ASSEMBLYAI_API_KEY= st.secrets['ASSEMBLYAI_API_KEY']
+# Set API Key for AssemblyAI
+headers = {'authorization': ASSEMBLYAI_API_KEY}
 
-def upload_to_assemblyai(file):
-    """Uploads an MP3 file to AssemblyAI's servers."""
-    headers = {'authorization': ASSEMBLYAI_API_KEY}
-    response = requests.post(
-        'https://api.assemblyai.com/v2/upload',
-        headers=headers,
-        files={'file': file}
-    )
-    if response.status_code == 200:
-        return response.json()['upload_url']
-    else:
-        st.error(f"File upload failed: {response.text}")
-        return None
-
-st.title("Audio Transcription with Timestamps")
-st.subheader("Upload an MP3 file for transcription with speaker timestamps")
-
-# File upload widget
-uploaded_file = st.file_uploader("Choose an MP3 file", type=["mp3"])
-
-if uploaded_file:
-    st.info("File uploaded successfully. Click 'Transcribe' to start.")
-
-    if st.button("Transcribe"):
+class AudioProcessor:
+    def __init__(self):
+        self.headers = headers
+    
+    def upload_to_assemblyai(self, file):
+        """Upload audio file to AssemblyAI"""
+        upload_url = 'https://api.assemblyai.com/v2/upload'
         try:
-            with st.spinner("Uploading the file to AssemblyAI..."):
-                # Upload file to AssemblyAI
-                upload_url = upload_to_assemblyai(uploaded_file)
-                if not upload_url:
-                    st.error("Failed to upload the file. Please try again.")
-                else:
-                    # Transcription configuration
-                    config = aai.TranscriptionConfig(speaker_labels=True)
-
-                    with st.spinner("Transcribing the audio file..."):
-                        # Transcribe the uploaded file
-                        transcript = aai.Transcriber().transcribe(upload_url, config)
-
-                    st.success("Transcription complete!")
-                    st.subheader("Transcription Results with Start-End Timestamps")
-                    
-                    for utterance in transcript.utterances:  # type: ignore
-                        # Convert start and end timestamps (in ms) to minutes:seconds format
-                        start_time = int(utterance.start) // 1000  # Convert ms to seconds
-                        end_time = int(utterance.end) // 1000  # Convert ms to seconds
-                        
-                        start_minutes = start_time // 60
-                        start_seconds = start_time % 60
-                        end_minutes = end_time // 60
-                        end_seconds = end_time % 60
-                        
-                        formatted_start = f"{start_minutes:02}:{start_seconds:02}"
-                        formatted_end = f"{end_minutes:02}:{end_seconds:02}"
-                        
-                        st.write(
-                            f"**[{formatted_start}-{formatted_end}] Speaker {utterance.speaker}:** {utterance.text}"
-                        )
+            response = requests.post(upload_url, headers=self.headers, files={'file': file})
+            response.raise_for_status()
+            return response.json()['upload_url']
         except Exception as e:
-            st.error(f"An error occurred: {e}")
+            st.error(f"File upload failed: {str(e)}")
+            return None
+
+    def request_transcription(self, audio_url):
+        """Request transcription with speaker labels"""
+        transcript_endpoint = 'https://api.assemblyai.com/v2/transcript'
+        json_data = {
+            'audio_url': audio_url,
+            'speaker_labels': True,
+            'language_code': 'en_us'
+        }
+        
+        try:
+            response = requests.post(transcript_endpoint, headers=self.headers, json=json_data)
+            response.raise_for_status()
+            return response.json()['id']
+        except Exception as e:
+            st.error(f"Transcription request failed: {str(e)}")
+            return None
+
+    def poll_transcription(self, transcript_id):
+        """Poll for transcription completion"""
+        status_endpoint = f"https://api.assemblyai.com/v2/transcript/{transcript_id}"
+        
+        while True:
+            try:
+                response = requests.get(status_endpoint, headers=self.headers)
+                response.raise_for_status()
+                result = response.json()
+                
+                if result['status'] == 'completed':
+                    return result
+                elif result['status'] == 'error':
+                    st.error(f"Transcription failed: {result.get('error', 'Unknown error')}")
+                    return None
+                
+                time.sleep(5)
+            except Exception as e:
+                st.error(f"Error polling transcription: {str(e)}")
+                return None
+
+def main():
+    st.set_page_config(page_title="Speaker Separation & Transcription", layout="wide")
+    
+    st.title("Speaker Separation & Audio Transcription")
+    st.subheader("Upload an audio file for speaker diarization and transcription")
+    
+    # Initialize processor
+    processor = AudioProcessor()
+    
+    # File uploader
+    uploaded_file = st.file_uploader("Choose an audio file", type=["mp3", "wav", "m4a"])
+    
+    if uploaded_file:
+        st.info("File uploaded successfully. Click 'Process Audio' to start.")
+        
+        if st.button("Process Audio"):
+            # Process the audio file
+            with st.spinner("Uploading audio file..."):
+                audio_url = processor.upload_to_assemblyai(uploaded_file)
+            
+            if audio_url:
+                with st.spinner("Starting transcription..."):
+                    transcript_id = processor.request_transcription(audio_url)
+                
+                if transcript_id:
+                    with st.spinner("Processing... (this may take a few minutes)"):
+                        result = processor.poll_transcription(transcript_id)
+                    
+                    if result:
+                        st.success("Processing completed!")
+                        
+                        # Create tabs for different views
+                        tab1, tab2 = st.tabs(["Transcript", "Statistics"])
+                        
+                        with tab1:
+                            st.subheader("Speaker Separated Transcription")
+                            for utterance in result.get('utterances', []):
+                                start_time = int(utterance['start']) // 1000
+                                minutes = start_time // 60
+                                seconds = start_time % 60
+                                formatted_time = f"{minutes:02}:{seconds:02}"
+                                
+                                st.write(
+                                    f"[{formatted_time}] Speaker {utterance['speaker']}: {utterance['text']}"
+                                )
+                        
+                        with tab2:
+                            st.subheader("Speaker Statistics")
+                            speakers = {}
+                            for utterance in result.get('utterances', []):
+                                speaker = utterance['speaker']
+                                if speaker not in speakers:
+                                    speakers[speaker] = {
+                                        'word_count': 0,
+                                        'duration': 0
+                                    }
+                                speakers[speaker]['word_count'] += len(utterance['text'].split())
+                                speakers[speaker]['duration'] += (utterance['end'] - utterance['start']) / 1000
+                            
+                            for speaker, stats in speakers.items():
+                                st.write(f"Speaker {speaker}:")
+                                st.write(f"- Words spoken: {stats['word_count']}")
+                                st.write(f"- Speaking time: {stats['duration']:.2f} seconds")
+
+if __name__ == "__main__":
+    main()

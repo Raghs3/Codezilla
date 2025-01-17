@@ -98,12 +98,18 @@ def main():
                             st.subheader("Speaker Separated Transcription")
                             for utterance in result.get('utterances', []):
                                 start_time = int(utterance['start']) // 1000
-                                minutes = start_time // 60
-                                seconds = start_time % 60
-                                formatted_time = f"{minutes:02}:{seconds:02}"
+                                end_time = int(utterance['end']) // 1000
+
+                                minutes_end = end_time // 60
+                                seconds_end = end_time % 60
+                                minutes_start = start_time // 60
+                                seconds_start = start_time % 60
+                                formatted_time_start = f"{minutes_start:02}:{seconds_start:02}"
+                                formatted_time_end = f"{minutes_end:02}:{seconds_end:02}"
+
                                 
                                 st.write(
-                                    f"[{formatted_time}] Speaker {utterance['speaker']}: {utterance['text']}"
+                                    f"[{formatted_time_start}-{formatted_time_end}] Speaker {utterance['speaker']}: {utterance['text']}"
                                 )
                         
                         with tab2:

@@ -3,4 +3,5 @@ requests==2.32.3
 streamlit==1.41.1
 pydub==0.25.1
 ffmpeg-python
+ffmpeg
 ffprobe

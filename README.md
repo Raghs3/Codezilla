@@ -1,4 +1,4 @@
-Deployed Link: <a href="https://speaker-audio-separation.streamlit.app/"> Speech-Diarization </a>
+Deployed Link: <a href="https://speaker-separation.streamlit.app/"> Speech-Diarization </a>
 
 #### Problem Statement:
 1. Multi-speaker audio recordings are difficult to analyze.

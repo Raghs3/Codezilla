@@ -12,6 +12,5 @@ Deployed Link: <a href="https://speaker-separation.streamlit.app/"> Speech-Diari
 
 #### Future Improvement
 1. Support for more languages.
-2. Audio track separation.
-3. Noise reduction for noisy environments.
-4. Real-time transcription during live calls.
+2. Noise reduction for noisy environments.
+3. Real-time transcription during live calls.

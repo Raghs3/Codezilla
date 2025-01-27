@@ -1,3 +1,4 @@
+(Won first place in our track in the hackathon)
 Deployed Link: <a href="https://speaker-separation.streamlit.app/"> Speech-Diarization </a>
 
 #### Problem Statement:
